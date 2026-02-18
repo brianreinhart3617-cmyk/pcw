@@ -68,6 +68,7 @@ create table email_log (
   subject         text,
   body            text,
   classification  jsonb,
+  gmail_message_id text,
   conversation_id uuid references conversations (id) on delete set null,
   sent_at         timestamptz not null default now()
 );
@@ -80,6 +81,7 @@ create index idx_deliverables_conv       on deliverables (conversation_id);
 create index idx_deliverables_approval   on deliverables (approval_status);
 create index idx_email_log_company       on email_log (company_id);
 create index idx_email_log_conversation  on email_log (conversation_id);
+create unique index idx_email_log_gmail_msg on email_log (company_id, gmail_message_id);
 
 -- Auto-update updated_at on conversations
 create or replace function update_updated_at()
