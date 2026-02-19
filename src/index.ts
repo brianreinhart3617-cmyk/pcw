@@ -70,5 +70,12 @@ app.get('*', (_req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`PCW Agent System running on port ${PORT}`);
-  startEmailMonitor();
+
+  // In Vercel, email polling is handled by Cron Jobs (POST /api/emails/poll).
+  // Only start the polling loop in local/self-hosted environments.
+  if (!process.env.VERCEL) {
+    startEmailMonitor();
+  } else {
+    console.log('[EmailMonitor] Running on Vercel — cron-driven polling, skipping setInterval');
+  }
 });

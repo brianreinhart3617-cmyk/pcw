@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build:all",
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.ts" },
+    { "source": "/health", "destination": "/api/index.ts" }
+  ],
+  "crons": [
+    {
+      "path": "/api/emails/poll",
+      "schedule": "* * * * *"
+    }
+  ]
+}
