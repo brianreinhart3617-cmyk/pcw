@@ -3,7 +3,7 @@ import { buildGmailClient, getRefreshTokenForCompany } from '../config/gmail';
 import { sendEmail } from './gmail';
 import { notifyApprovalNeeded } from './slack';
 import { fireMakeWebhook } from './make';
-import type { CompanyRecord, ConversationHistoryEntry, EmailLogInsert } from '../types/email';
+import type { CompanyRecord, ConversationHistoryEntry, EmailClassification, EmailLogInsert } from '../types/email';
 import type { PendingItem, PendingEmailItem, PendingDeliverableItem } from '../types/approval';
 
 const LOG = '[ApprovalQueue]';
@@ -340,13 +340,15 @@ export async function requestChangesEmail(
     email_log_id: '',
   });
 
-  await supabase
+  const { data: updated } = await supabase
     .from('conversations')
     .update({
       status: 'active',
       conversation_history: history,
     })
-    .eq('id', conversationId);
+    .eq('id', conversationId)
+    .select('*, companies(*)')
+    .single();
 
   fireMakeWebhook({
     event_type: 'email.changes_requested',
@@ -359,6 +361,20 @@ export async function requestChangesEmail(
   });
 
   console.log(`${LOG} Changes requested for conversation ${conversationId}`);
+
+  // Auto-redraft: trigger the response agent to generate a new draft incorporating feedback
+  if (updated) {
+    const company = updated.companies as CompanyRecord;
+    const lastClassification = await getLatestClassification(conversationId);
+    if (lastClassification && company) {
+      // Lazy import to avoid circular dependency
+      const { generateResponse } = await import('../agents/response-agent');
+      generateResponse(conversationId, lastClassification, company).catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`${LOG} Auto-redraft failed for conversation ${conversationId}: ${msg}`);
+      });
+    }
+  }
 }
 
 // ─── Deliverable Actions ───
@@ -409,6 +425,26 @@ export async function rejectDeliverable(
   });
 
   console.log(`${LOG} Deliverable ${deliverableId} rejected`);
+}
+
+// ─── Helpers ───
+
+async function getLatestClassification(
+  conversationId: string,
+): Promise<EmailClassification | null> {
+  const { data } = await supabase
+    .from('email_log')
+    .select('classification')
+    .eq('conversation_id', conversationId)
+    .eq('direction', 'inbound')
+    .not('classification', 'is', null)
+    .order('sent_at', { ascending: false })
+    .limit(1);
+
+  if (data && data.length > 0 && data[0].classification) {
+    return data[0].classification as unknown as EmailClassification;
+  }
+  return null;
 }
 
 export async function requestChangesDeliverable(
