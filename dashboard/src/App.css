@@ -1,0 +1,313 @@
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ─── Sidebar ─── */
+
+.sidebar {
+  width: 220px;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+}
+
+.sidebar-logo {
+  padding: 0 20px 20px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--accent);
+  letter-spacing: -0.3px;
+}
+
+.sidebar-logo span {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.sidebar nav {
+  padding: 12px 0;
+  flex: 1;
+}
+
+.sidebar nav button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 20px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  border-radius: 0;
+}
+
+.sidebar nav button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.sidebar nav button.active {
+  background: var(--bg-hover);
+  color: var(--accent);
+  border-left: 3px solid var(--accent);
+  padding-left: 17px;
+}
+
+.sidebar-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+/* ─── Main Content ─── */
+
+.main {
+  flex: 1;
+  margin-left: 220px;
+  padding: 24px 32px;
+  max-width: 1100px;
+}
+
+.main h2 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+/* ─── Cards ─── */
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 12px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.card-header h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.card-meta {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.card-meta span {
+  margin-right: 14px;
+}
+
+.card-body {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ─── Buttons ─── */
+
+.btn-approve {
+  background: var(--green);
+  color: #fff;
+}
+.btn-approve:hover { opacity: 0.85; }
+
+.btn-reject {
+  background: var(--red);
+  color: #fff;
+}
+.btn-reject:hover { opacity: 0.85; }
+
+.btn-changes {
+  background: var(--orange);
+  color: #000;
+}
+.btn-changes:hover { opacity: 0.85; }
+
+.btn-secondary {
+  background: var(--bg-hover);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover {
+  background: var(--border);
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-accent:hover {
+  background: var(--accent-hover);
+}
+
+/* ─── Badges ─── */
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge-pending { background: #f59e0b22; color: var(--orange); }
+.badge-active { background: #3b82f622; color: var(--blue); }
+.badge-approved { background: #22c55e22; color: var(--green); }
+.badge-rejected { background: #ef444422; color: var(--red); }
+.badge-inbound { background: #6366f122; color: var(--accent); }
+.badge-outbound { background: #22c55e22; color: var(--green); }
+.badge-email { background: #3b82f622; color: var(--blue); }
+.badge-deliverable { background: #a855f722; color: #a855f7; }
+.badge-connected { background: #22c55e22; color: var(--green); }
+.badge-disconnected { background: #ef444422; color: var(--red); }
+
+/* ─── Feedback Inline ─── */
+
+.feedback-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.feedback-row textarea {
+  flex: 1;
+  min-height: 40px;
+}
+
+/* ─── Status Grid ─── */
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.status-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+}
+
+.status-card h3 {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.status-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+/* ─── Table ─── */
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+th {
+  text-align: left;
+  padding: 10px 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+tr:hover td {
+  background: var(--bg-hover);
+}
+
+/* ─── Loading ─── */
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-dim);
+}
+
+.error-msg {
+  background: #ef444418;
+  border: 1px solid #ef444444;
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  color: var(--red);
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+}
+
+/* ─── Empty State ─── */
+
+.empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-dim);
+}
+
+.empty-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.queue-count {
+  background: var(--red);
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 1px 7px;
+  border-radius: 10px;
+  margin-left: 8px;
+  font-weight: 700;
+}
