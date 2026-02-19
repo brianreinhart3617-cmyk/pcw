@@ -19,7 +19,7 @@ Monitors email inboxes for three companies, classifies incoming emails, responds
 - **Database:** Supabase (`@supabase/supabase-js`)
 - **Hosting:** Vercel
 - **Email:** Gmail API via OAuth2 (`googleapis`)
-- **Design:** Canva API (planned)
+- **Design:** Canva Connect API via OAuth2 (native `fetch`)
 - **Notifications:** Slack incoming webhooks
 - **Server:** Express 5
 
@@ -27,7 +27,7 @@ Monitors email inboxes for three companies, classifies incoming emails, responds
 1. **Email Monitoring** — Polls Gmail inboxes every 60s for all three companies, deduplicates via `gmail_message_id` unique index
 2. **Email Classification** — Claude Sonnet classifies emails by category, urgency, sentiment, and required action with per-company category lists (marketing vs BH center)
 3. **Intelligent Response** — Claude Sonnet drafts context-aware replies using full conversation history, HIPAA-compliant prompts for BH centers
-4. **Marketing Deliverables** — Deliverable tracking with approval workflow (Canva integration planned)
+4. **Marketing Deliverables** — Generate flyers and business cards via Canva API with brand kit integration, export polling, and version tracking
 5. **Approval Queue** — All outbound emails and deliverables require human approval before sending; approve/reject/request-changes with feedback
 6. **Slack Notifications** — Alerts when new items need review in the approval queue
 
@@ -37,6 +37,11 @@ Inbound email → Gmail fetch → Log to email_log → Classify (Claude)
 → Create/update conversation → Generate draft response (Claude)
 → Submit to approval queue → Slack notification → Brian reviews
 → Approve → Send via Gmail → Log outbound email
+
+Deliverable request → Fetch brand kit → Upload logo to Canva
+→ Create Canva design (preset type) → Export (PDF/PNG)
+→ Insert deliverable row → Slack notification → Brian reviews
+→ Approve / Request changes → Regenerate new version if needed
 ```
 
 ### Folder Structure
@@ -51,17 +56,22 @@ src/
     email-processor.ts   — Orchestrates classify → conversation → response
     approval-queue.ts    — Draft submission, approve/reject/request-changes
     slack.ts             — Slack webhook notifications
+    canva.ts             — Canva API wrappers (create design, export, upload asset)
+    deliverable-generator.ts — Orchestrates brand kit → Canva design → export → deliverable row
   config/
     supabase.ts          — Supabase client initialization
-    supabase-schema.sql  — Database schema (5 tables, indexes, triggers)
+    supabase-schema.sql  — Database schema (6 tables, indexes, triggers)
     gmail.ts             — Gmail OAuth2 client factory
     anthropic.ts         — Anthropic SDK client
+    canva.ts             — Canva OAuth2 flow, token management, authenticated fetch wrapper
   api/
     email.ts             — GET /api/emails, POST /api/emails/poll, GET /api/emails/:id
     approval.ts          — Approval queue endpoints (queue, drafts, approve, reject, request-changes)
+    canva.ts             — Canva OAuth flow, deliverable generation/regeneration endpoints
   types/
     email.ts             — Core types (CompanyRecord, ParsedEmail, EmailClassification, etc.)
     approval.ts          — Approval queue types (PendingItem, SlackNotificationPayload)
+    canva.ts             — Canva API types (tokens, designs, exports, deliverables)
   index.ts               — Express server entry point, mounts routes, starts monitor
 ```
 
@@ -69,8 +79,9 @@ src/
 - **companies** — id, name, type, gmail_address, system_prompt_classification, system_prompt_agent, is_active
 - **brand_kits** — id, company_id, colors, fonts, logo, tone, compliance_notes, business_card_template
 - **conversations** — id, company_id, thread_id, client_email, category, sub_type, status, conversation_history (JSONB)
-- **deliverables** — id, conversation_id, type, version, content, file_urls, preview_urls, approval_status, brian_feedback
+- **deliverables** — id, conversation_id, type, version, content, file_urls, preview_urls, approval_status, brian_feedback, canva_design_id, canva_export_url
 - **email_log** — id, company_id, direction, from/to, subject, body, classification (JSONB), gmail_message_id, conversation_id
+- **canva_tokens** — id, access_token, refresh_token, expires_at, scopes (single-row pattern for shared OAuth2 tokens)
 
 ### API Endpoints
 | Method | Path | Description |
@@ -87,6 +98,11 @@ src/
 | POST | `/api/approval/deliverables/:id/approve` | Approve deliverable |
 | POST | `/api/approval/deliverables/:id/reject` | Reject with feedback |
 | POST | `/api/approval/deliverables/:id/request-changes` | Request changes with feedback |
+| GET | `/api/canva/auth` | Start Canva OAuth2 flow |
+| GET | `/api/canva/callback` | Canva OAuth2 callback |
+| GET | `/api/canva/status` | Check Canva connection status |
+| POST | `/api/deliverables/generate` | Generate deliverable via Canva |
+| POST | `/api/deliverables/:id/regenerate` | Regenerate with feedback |
 
 ## Development
 
@@ -104,7 +120,7 @@ SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REDIRECT_URI
 GMAIL_REFRESH_TOKEN_PCW, GMAIL_REFRESH_TOKEN_BH1, GMAIL_REFRESH_TOKEN_BH2
 SLACK_WEBHOOK_URL
-CANVA_API_KEY
+CANVA_CLIENT_ID, CANVA_CLIENT_SECRET, CANVA_REDIRECT_URI
 ```
 
 ## Conventions
@@ -113,4 +129,6 @@ CANVA_API_KEY
 - All external actions (email send, Slack post) go through the approval queue
 - Per-company customization via `system_prompt_classification` and `system_prompt_agent` columns
 - Fire-and-forget pattern for async processing (classification, response generation) — errors logged, never block the polling loop
+- Lazy env loading for optional integrations (Canva) — app boots without credentials configured
+- Single-row token table for Canva OAuth2 — one account serves all three companies
 - Console logging with `[ServiceName]` prefixes for traceability
