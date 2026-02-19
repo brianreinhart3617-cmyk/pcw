@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase';
 import { classifyEmail } from '../agents/classifier';
+import { generateResponse } from '../agents/response-agent';
 import type {
   CompanyRecord,
   EmailClassification,
@@ -65,6 +66,17 @@ export async function processNewEmail(
 
   if (updateError) {
     console.error(`[EmailProcessor] Failed to update email_log ${emailLogId}:`, updateError.message);
+  }
+
+  // 5. Auto-draft response if needed
+  if (classification.requires_response) {
+    generateResponse(conversationId, classification, company).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[EmailProcessor] Response generation failed for conversation ${conversationId}:`,
+        msg,
+      );
+    });
   }
 }
 
