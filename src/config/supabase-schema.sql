@@ -55,6 +55,8 @@ create table deliverables (
   approval_status text not null default 'pending'
                     check (approval_status in ('pending', 'approved', 'changes_requested', 'rejected')),
   brian_feedback  text,
+  canva_design_id text,
+  canva_export_url text,
   created_at      timestamptz not null default now()
 );
 
@@ -94,4 +96,19 @@ $$ language plpgsql;
 
 create trigger conversations_updated_at
   before update on conversations
+  for each row execute function update_updated_at();
+
+-- 6) Canva OAuth2 token storage (single-row pattern)
+create table canva_tokens (
+  id            uuid primary key default gen_random_uuid(),
+  access_token  text not null,
+  refresh_token text not null,
+  expires_at    timestamptz not null,
+  scopes        text[] not null default '{}',
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create trigger canva_tokens_updated_at
+  before update on canva_tokens
   for each row execute function update_updated_at();
