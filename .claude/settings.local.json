@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(dir:*)",
+      "Bash(npm view:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm install:*)",
+      "Bash(git ls-tree:*)",
+      "WebFetch(domain:www.canva.dev)",
+      "Bash(npm create:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }
