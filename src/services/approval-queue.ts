@@ -2,6 +2,7 @@ import { supabase } from '../config/supabase';
 import { buildGmailClient, getRefreshTokenForCompany } from '../config/gmail';
 import { sendEmail } from './gmail';
 import { notifyApprovalNeeded } from './slack';
+import { fireMakeWebhook } from './make';
 import type { CompanyRecord, ConversationHistoryEntry, EmailLogInsert } from '../types/email';
 import type { PendingItem, PendingEmailItem, PendingDeliverableItem } from '../types/approval';
 
@@ -64,6 +65,19 @@ export async function submitDraftResponse(
     summary: draftBody.slice(0, 200),
   }).catch((err) => {
     console.error(`${LOG} Slack notification failed:`, err);
+  });
+
+  fireMakeWebhook({
+    event_type: 'email.draft_ready',
+    data: {
+      conversationId,
+      companyName: company.name,
+      clientEmail: conversation.client_email,
+      draftSubject,
+      draftBodyPreview: draftBody.slice(0, 500),
+    },
+  }).catch((err) => {
+    console.error(`${LOG} Make webhook failed:`, err);
   });
 
   console.log(`${LOG} Draft submitted for conversation ${conversationId}`);
@@ -227,6 +241,20 @@ export async function approveEmail(
     })
     .eq('id', conversationId);
 
+  fireMakeWebhook({
+    event_type: 'email.approved',
+    data: {
+      conversationId,
+      companyName: company.name,
+      clientEmail: conversation.client_email,
+      subject: draftSubject,
+      messageId: sendResult.messageId,
+      threadId: sendResult.threadId,
+    },
+  }).catch((err) => {
+    console.error(`${LOG} Make webhook failed:`, err);
+  });
+
   console.log(`${LOG} Email approved and sent for conversation ${conversationId}`);
   return sendResult;
 }
@@ -269,6 +297,17 @@ export async function rejectEmail(
     })
     .eq('id', conversationId);
 
+  fireMakeWebhook({
+    event_type: 'email.rejected',
+    data: {
+      conversationId,
+      feedback,
+      permanent,
+    },
+  }).catch((err) => {
+    console.error(`${LOG} Make webhook failed:`, err);
+  });
+
   console.log(`${LOG} Email rejected for conversation ${conversationId}`);
 }
 
@@ -309,6 +348,16 @@ export async function requestChangesEmail(
     })
     .eq('id', conversationId);
 
+  fireMakeWebhook({
+    event_type: 'email.changes_requested',
+    data: {
+      conversationId,
+      feedback,
+    },
+  }).catch((err) => {
+    console.error(`${LOG} Make webhook failed:`, err);
+  });
+
   console.log(`${LOG} Changes requested for conversation ${conversationId}`);
 }
 
@@ -324,6 +373,13 @@ export async function approveDeliverable(deliverableId: string): Promise<void> {
   if (error) {
     throw new Error(`Failed to approve deliverable ${deliverableId}: ${error.message}`);
   }
+
+  fireMakeWebhook({
+    event_type: 'deliverable.approved',
+    data: { deliverableId },
+  }).catch((err) => {
+    console.error(`${LOG} Make webhook failed:`, err);
+  });
 
   console.log(`${LOG} Deliverable ${deliverableId} approved`);
 }
@@ -345,6 +401,13 @@ export async function rejectDeliverable(
     throw new Error(`Failed to reject deliverable ${deliverableId}: ${error.message}`);
   }
 
+  fireMakeWebhook({
+    event_type: 'deliverable.rejected',
+    data: { deliverableId, feedback },
+  }).catch((err) => {
+    console.error(`${LOG} Make webhook failed:`, err);
+  });
+
   console.log(`${LOG} Deliverable ${deliverableId} rejected`);
 }
 
@@ -364,6 +427,13 @@ export async function requestChangesDeliverable(
   if (error) {
     throw new Error(`Failed to request changes for deliverable ${deliverableId}: ${error.message}`);
   }
+
+  fireMakeWebhook({
+    event_type: 'deliverable.changes_requested',
+    data: { deliverableId, feedback },
+  }).catch((err) => {
+    console.error(`${LOG} Make webhook failed:`, err);
+  });
 
   console.log(`${LOG} Changes requested for deliverable ${deliverableId}`);
 }

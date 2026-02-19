@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase';
 import { createDesign, exportDesign, waitForExport, uploadAssetFromUrl } from './canva';
 import { notifyApprovalNeeded } from './slack';
+import { fireMakeWebhook } from './make';
 import type {
   DeliverableType,
   CanvaDesignPreset,
@@ -154,6 +155,22 @@ export async function generateDeliverable(
     summary: `${type === 'business_card' ? 'Business card' : 'Flyer'} v${version} ready for review`,
   }).catch((err) => {
     console.error(`${LOG} Slack notification failed:`, err);
+  });
+
+  fireMakeWebhook({
+    event_type: 'deliverable.created',
+    data: {
+      deliverableId: deliverable.id,
+      conversationId,
+      companyName: company.name,
+      clientEmail: conversation.client_email,
+      type,
+      version,
+      canvaDesignUrl: design.url,
+      exportUrls,
+    },
+  }).catch((err) => {
+    console.error(`${LOG} Make webhook failed:`, err);
   });
 
   console.log(

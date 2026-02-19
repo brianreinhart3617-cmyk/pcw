@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase';
 import { classifyEmail } from '../agents/classifier';
 import { generateResponse } from '../agents/response-agent';
+import { fireMakeWebhook } from './make';
 import type {
   CompanyRecord,
   EmailClassification,
@@ -68,7 +69,24 @@ export async function processNewEmail(
     console.error(`[EmailProcessor] Failed to update email_log ${emailLogId}:`, updateError.message);
   }
 
-  // 5. Auto-draft response if needed
+  // 5. Fire Make.com webhook
+  fireMakeWebhook({
+    event_type: 'email.classified',
+    data: {
+      emailLogId,
+      conversationId,
+      companyId: company.id,
+      companyName: company.name,
+      fromEmail: emailRow.from_email,
+      subject: emailRow.subject,
+      classification,
+    },
+  }).catch((err) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[EmailProcessor] Make webhook failed: ${msg}`);
+  });
+
+  // 6. Auto-draft response if needed
   if (classification.requires_response) {
     generateResponse(conversationId, classification, company).catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
