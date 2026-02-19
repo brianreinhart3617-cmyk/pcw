@@ -1,6 +1,7 @@
 import { supabase } from '../config/supabase';
 import { buildGmailClient, getRefreshTokenForCompany } from '../config/gmail';
 import { fetchNewMessageIds, getEmailDetails } from './gmail';
+import { processNewEmail } from './email-processor';
 import type { CompanyRecord, EmailLogInsert } from '../types/email';
 
 const POLL_INTERVAL_MS = 60_000;
@@ -70,19 +71,27 @@ async function pollCompanyInbox(company: CompanyRecord): Promise<void> {
         sent_at: parsed.received_at.toISOString(),
       };
 
-      const { error: insertError } = await supabase
+      const { data: inserted, error: insertError } = await supabase
         .from('email_log')
-        .insert(insert);
+        .insert(insert)
+        .select('id')
+        .single();
 
-      if (insertError) {
+      if (insertError || !inserted) {
         console.error(
           `[EmailMonitor] Failed to insert email ${messageId}:`,
-          insertError.message,
+          insertError?.message,
         );
       } else {
         console.log(
           `[EmailMonitor] New email for ${company.name}: "${parsed.subject}" from ${parsed.from_email}`,
         );
+
+        // Fire-and-forget: classify and process the email
+        processNewEmail(inserted.id, company, parsed.thread_id).catch((err) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[EmailMonitor] Processing failed for ${inserted.id}:`, msg);
+        });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

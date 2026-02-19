@@ -38,3 +38,30 @@ export interface SendEmailParams {
   thread_id?: string;
   in_reply_to?: string;
 }
+
+export interface EmailClassification {
+  category: string;
+  sub_type: string | null;
+  urgency: 'low' | 'medium' | 'high';
+  sentiment: 'positive' | 'neutral' | 'negative';
+  requires_response: boolean;
+  summary: string;
+}
+
+export interface ConversationHistoryEntry {
+  role: 'client' | 'agent';
+  content: string;
+  timestamp: string;
+  email_log_id: string;
+}
+
+export interface ConversationInsert {
+  company_id: string;
+  thread_id: string | null;
+  client_email: string;
+  client_name: string | null;
+  category: string;
+  sub_type: string | null;
+  status: 'active' | 'waiting_client' | 'waiting_approval' | 'completed' | 'ignored';
+  conversation_history: ConversationHistoryEntry[];
+}
