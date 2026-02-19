@@ -5,7 +5,11 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "build:dashboard": "cd dashboard && npm run build",
+    "build:all": "npm run build && npm run build:dashboard",
+    "start": "node dist/index.js",
+    "seed": "tsx scripts/seed-companies.ts",
+    "gmail:auth": "tsx scripts/gmail-oauth.ts"
   },
   "repository": {
     "type": "git",
