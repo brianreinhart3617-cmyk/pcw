@@ -49,10 +49,11 @@ export interface EmailClassification {
 }
 
 export interface ConversationHistoryEntry {
-  role: 'client' | 'agent';
+  role: 'client' | 'agent' | 'system';
   content: string;
   timestamp: string;
   email_log_id: string;
+  subject?: string;
 }
 
 export interface ConversationInsert {

@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { startEmailMonitor } from './services/email-monitor';
 import emailRoutes from './api/email';
+import approvalRoutes from './api/approval';
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/api', emailRoutes);
+app.use('/api', approvalRoutes);
 
 app.listen(PORT, () => {
   console.log(`PCW Agent System running on port ${PORT}`);
