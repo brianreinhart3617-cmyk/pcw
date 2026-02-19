@@ -20,6 +20,8 @@ export interface BrandKitRow {
   tone: string | null;
   compliance_notes: string | null;
   business_card_template: Record<string, unknown> | null;
+  canva_flyer_template_id: string | null;
+  canva_business_card_template_id: string | null;
   created_at: string;
 }
 
@@ -95,6 +97,43 @@ export interface UploadAssetResponse {
     status: 'in_progress' | 'success' | 'failed';
     asset?: {
       id: string;
+    };
+    error?: {
+      code: string;
+      message: string;
+    };
+  };
+}
+
+// ─── Autofill API ───
+
+export interface AutofillDataset {
+  [key: string]: {
+    type: 'text';
+    text: string;
+  } | {
+    type: 'image';
+    asset_id: string;
+  };
+}
+
+export interface CreateAutofillJobRequest {
+  brand_template_id: string;
+  title: string;
+  data: AutofillDataset;
+}
+
+export interface AutofillJobResponse {
+  job: {
+    id: string;
+    status: 'in_progress' | 'success' | 'failed';
+    result?: {
+      type: 'create_design';
+      design: {
+        id: string;
+        title: string;
+        url: string;
+      };
     };
     error?: {
       code: string;

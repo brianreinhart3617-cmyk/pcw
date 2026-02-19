@@ -6,6 +6,8 @@ import type {
   CreateExportResponse,
   CanvaExportJob,
   UploadAssetResponse,
+  AutofillDataset,
+  AutofillJobResponse,
 } from '../types/canva';
 
 const LOG = '[CanvaService]';
@@ -81,6 +83,58 @@ export async function waitForExport(
   }
 
   throw new Error(`Canva export timed out after ${maxWaitMs}ms`);
+}
+
+// ─── Brand Template Autofill ───
+
+export async function autofillBrandTemplate(
+  brandTemplateId: string,
+  title: string,
+  data: AutofillDataset,
+): Promise<{ designId: string; designUrl: string }> {
+  const res = await canvaFetch('/autofills', {
+    method: 'POST',
+    body: JSON.stringify({
+      brand_template_id: brandTemplateId,
+      title,
+      data,
+    }),
+  });
+
+  const initial = (await res.json()) as AutofillJobResponse;
+
+  if (initial.job.status === 'success' && initial.job.result) {
+    const design = initial.job.result.design;
+    console.log(`${LOG} Autofill completed: ${design.id}`);
+    return { designId: design.id, designUrl: design.url };
+  }
+
+  if (initial.job.status === 'failed') {
+    throw new Error(`Canva autofill failed: ${initial.job.error?.message ?? 'Unknown error'}`);
+  }
+
+  // Poll for completion
+  const maxWait = 60_000;
+  const deadline = Date.now() + maxWait;
+
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+
+    const statusRes = await canvaFetch(`/autofills/${initial.job.id}`, { method: 'GET' });
+    const statusData = (await statusRes.json()) as AutofillJobResponse;
+
+    if (statusData.job.status === 'success' && statusData.job.result) {
+      const design = statusData.job.result.design;
+      console.log(`${LOG} Autofill completed: ${design.id}`);
+      return { designId: design.id, designUrl: design.url };
+    }
+
+    if (statusData.job.status === 'failed') {
+      throw new Error(`Canva autofill failed: ${statusData.job.error?.message ?? 'Unknown error'}`);
+    }
+  }
+
+  throw new Error('Canva autofill timed out');
 }
 
 // ─── Asset Upload ───

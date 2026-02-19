@@ -24,6 +24,8 @@ create table brand_kits (
   tone             text,
   compliance_notes text,
   business_card_template jsonb,
+  canva_flyer_template_id text,
+  canva_business_card_template_id text,
   created_at       timestamptz not null default now()
 );
 

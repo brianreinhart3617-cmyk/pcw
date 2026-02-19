@@ -1,5 +1,11 @@
 import { supabase } from '../config/supabase';
-import { createDesign, exportDesign, waitForExport, uploadAssetFromUrl } from './canva';
+import {
+  createDesign,
+  exportDesign,
+  waitForExport,
+  uploadAssetFromUrl,
+  autofillBrandTemplate,
+} from './canva';
 import { notifyApprovalNeeded } from './slack';
 import { fireMakeWebhook } from './make';
 import type {
@@ -7,6 +13,7 @@ import type {
   CanvaDesignPreset,
   CanvaExportFormat,
   BrandKitRow,
+  AutofillDataset,
   GenerateDeliverableParams,
   GenerateDeliverableResult,
 } from '../types/canva';
@@ -44,6 +51,46 @@ async function getBrandKit(companyId: string): Promise<BrandKitRow | null> {
     .single();
 
   return data as BrandKitRow | null;
+}
+
+function getTemplateId(
+  brandKit: BrandKitRow | null,
+  type: DeliverableType,
+): string | null {
+  if (!brandKit) return null;
+  return type === 'business_card'
+    ? brandKit.canva_business_card_template_id
+    : brandKit.canva_flyer_template_id;
+}
+
+function buildAutofillData(
+  brandKit: BrandKitRow,
+  company: CompanyRecord,
+  logoAssetId: string | null,
+  instructions: string | undefined,
+): AutofillDataset {
+  const data: AutofillDataset = {};
+
+  // Common text fields that Canva brand templates typically expose
+  data['company_name'] = { type: 'text', text: company.name };
+
+  if (brandKit.tone) {
+    data['tagline'] = { type: 'text', text: brandKit.tone };
+  }
+
+  if (instructions) {
+    data['body_text'] = { type: 'text', text: instructions };
+  }
+
+  if (brandKit.primary_colors && brandKit.primary_colors.length > 0) {
+    data['primary_color'] = { type: 'text', text: brandKit.primary_colors[0] };
+  }
+
+  if (logoAssetId) {
+    data['logo'] = { type: 'image', asset_id: logoAssetId };
+  }
+
+  return data;
 }
 
 async function getNextVersion(
@@ -98,22 +145,46 @@ export async function generateDeliverable(
     }
   }
 
-  // 4. Create Canva design
+  // 4. Create Canva design (autofill from brand template if available, else blank preset)
   const version = await getNextVersion(conversationId, type);
   const title = buildDesignTitle(company.name, type, version);
-  const preset = PRESET_MAP[type];
+  const templateId = getTemplateId(brandKit, type);
 
-  const design = await createDesign(title, preset);
+  let designId: string;
+  let designUrl: string;
+
+  if (templateId && brandKit) {
+    // Use brand template autofill to populate with brand elements
+    const autofillData = buildAutofillData(brandKit, company, logoAssetId, instructions);
+    try {
+      const result = await autofillBrandTemplate(templateId, title, autofillData);
+      designId = result.designId;
+      designUrl = result.designUrl;
+      console.log(`${LOG} Used brand template autofill for ${type}`);
+    } catch (err) {
+      // Fallback to blank design if autofill fails
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`${LOG} Autofill failed, falling back to blank design: ${msg}`);
+      const design = await createDesign(title, PRESET_MAP[type]);
+      designId = design.id;
+      designUrl = design.url;
+    }
+  } else {
+    const design = await createDesign(title, PRESET_MAP[type]);
+    designId = design.id;
+    designUrl = design.url;
+  }
 
   // 5. Export design
   const exportFormat = EXPORT_FORMAT_MAP[type];
-  const exportId = await exportDesign(design.id, exportFormat);
+  const exportId = await exportDesign(designId, exportFormat);
   const exportUrls = await waitForExport(exportId);
 
   // 6. Build content metadata
   const content: Record<string, unknown> = {
-    canva_editor_url: design.url,
+    canva_editor_url: designUrl,
     instructions: instructions ?? null,
+    brand_template_id: templateId ?? null,
     brand_kit: brandKit
       ? {
           primary_colors: brandKit.primary_colors,
@@ -136,7 +207,7 @@ export async function generateDeliverable(
       file_urls: exportUrls,
       preview_urls: exportUrls,
       approval_status: 'pending',
-      canva_design_id: design.id,
+      canva_design_id: designId,
       canva_export_url: exportUrls[0] ?? null,
     })
     .select('id')
@@ -166,7 +237,7 @@ export async function generateDeliverable(
       clientEmail: conversation.client_email,
       type,
       version,
-      canvaDesignUrl: design.url,
+      canvaDesignUrl: designUrl,
       exportUrls,
     },
   }).catch((err) => {
@@ -179,8 +250,8 @@ export async function generateDeliverable(
 
   return {
     deliverableId: deliverable.id,
-    canvaDesignId: design.id,
-    canvaDesignUrl: design.url,
+    canvaDesignId: designId,
+    canvaDesignUrl: designUrl,
     exportUrls,
     version,
   };
