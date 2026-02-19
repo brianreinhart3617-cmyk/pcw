@@ -38,9 +38,10 @@ Inbound email → Gmail fetch → Log to email_log → Classify (Claude)
 → Create/update conversation → Generate draft response (Claude)
 → Submit to approval queue → Slack notification → Brian reviews
 → Approve → Send via Gmail → Log outbound email
+→ Request changes → Auto-redraft with feedback → Re-enter approval queue
 
 Deliverable request → Fetch brand kit → Upload logo to Canva
-→ Create Canva design (preset type) → Export (PDF/PNG)
+→ Autofill brand template (or create blank preset) → Export (PDF/PNG)
 → Insert deliverable row → Slack notification → Brian reviews
 → Approve / Request changes → Regenerate new version if needed
 
@@ -57,10 +58,10 @@ src/
     gmail.ts             — Gmail API operations (fetch, parse, send)
     email-monitor.ts     — Polling loop for all company inboxes
     email-processor.ts   — Orchestrates classify → conversation → response
-    approval-queue.ts    — Draft submission, approve/reject/request-changes
+    approval-queue.ts    — Draft submission, approve/reject/request-changes, auto-redraft
     slack.ts             — Slack webhook notifications
     make.ts              — Make.com outbound webhook (fire-and-forget, native fetch)
-    canva.ts             — Canva API wrappers (create design, export, upload asset)
+    canva.ts             — Canva API wrappers (create design, export, upload asset, autofill)
     deliverable-generator.ts — Orchestrates brand kit → Canva design → export → deliverable row
   config/
     supabase.ts          — Supabase client initialization
@@ -73,17 +74,26 @@ src/
     approval.ts          — Approval queue endpoints (queue, drafts, approve, reject, request-changes)
     canva.ts             — Canva OAuth flow, deliverable generation/regeneration endpoints
     make.ts              — Make.com status and test endpoints
+    conversations.ts     — GET /api/conversations, GET /api/conversations/:id
+    companies.ts         — GET /api/companies, GET /api/companies/:id
   types/
     email.ts             — Core types (CompanyRecord, ParsedEmail, EmailClassification, etc.)
     approval.ts          — Approval queue types (PendingItem, SlackNotificationPayload)
-    canva.ts             — Canva API types (tokens, designs, exports, deliverables)
+    canva.ts             — Canva API types (tokens, designs, exports, deliverables, autofill)
     make.ts              — Make.com webhook event types (discriminated union, envelope)
   index.ts               — Express server entry point, mounts routes, starts monitor
+api/
+  index.ts               — Vercel serverless function entry point (no polling loop)
+scripts/
+  seed-companies.ts      — Seeds companies and brand kits into Supabase
+  gmail-oauth.ts         — Interactive helper to obtain Gmail refresh tokens
+dashboard/               — React 19 + Vite + TypeScript approval UI
+vercel.json              — Vercel deployment config with cron-driven email polling
 ```
 
 ### Database Schema (Supabase)
 - **companies** — id, name, type, gmail_address, system_prompt_classification, system_prompt_agent, is_active
-- **brand_kits** — id, company_id, colors, fonts, logo, tone, compliance_notes, business_card_template
+- **brand_kits** — id, company_id, colors, fonts, logo, tone, compliance_notes, business_card_template, canva_flyer_template_id, canva_business_card_template_id
 - **conversations** — id, company_id, thread_id, client_email, category, sub_type, status, conversation_history (JSONB)
 - **deliverables** — id, conversation_id, type, version, content, file_urls, preview_urls, approval_status, brian_feedback, canva_design_id, canva_export_url
 - **email_log** — id, company_id, direction, from/to, subject, body, classification (JSONB), gmail_message_id, conversation_id
@@ -111,26 +121,53 @@ src/
 | POST | `/api/deliverables/:id/regenerate` | Regenerate with feedback |
 | GET | `/api/make/status` | Check if Make.com webhook is configured |
 | POST | `/api/make/test` | Fire test event to verify connectivity |
+| GET | `/api/conversations` | List conversations (filter by status, company_id) |
+| GET | `/api/conversations/:id` | Get conversation with emails and deliverables |
+| GET | `/api/companies` | List all companies |
+| GET | `/api/companies/:id` | Get company with brand kit |
 
 ## Development
 
 ```bash
-npm run dev      # Start dev server with hot reload
-npm run build    # Compile TypeScript
-npm start        # Run compiled output
+npm run dev            # Start dev server with hot reload
+npm run build          # Compile TypeScript
+npm run build:dashboard # Build React dashboard
+npm run build:all      # Compile TypeScript + build dashboard
+npm start              # Run compiled output
+npm run seed           # Seed companies and brand kits into Supabase
+npm run gmail:auth PCW # Obtain Gmail refresh token (PCW, BH1, or BH2)
 ```
+
+### First-Time Setup
+1. Copy `.env.example` to `.env` and fill in credentials
+2. Run the SQL schema in `src/config/supabase-schema.sql` via the Supabase SQL Editor
+3. Obtain Gmail refresh tokens: `npm run gmail:auth PCW`, then `BH1`, then `BH2`
+4. Seed companies: `npm run seed`
+5. Connect Canva: visit `GET /api/canva/auth` in a browser after starting the server
+6. Start: `npm run dev`
 
 ### Environment Variables
 ```
-PORT, NODE_ENV
+PORT, NODE_ENV, CORS_ORIGIN
 ANTHROPIC_API_KEY
 SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REDIRECT_URI
 GMAIL_REFRESH_TOKEN_PCW, GMAIL_REFRESH_TOKEN_BH1, GMAIL_REFRESH_TOKEN_BH2
+GMAIL_ADDRESS_PCW, GMAIL_ADDRESS_BH1, GMAIL_ADDRESS_BH2 (optional, used by seed)
 SLACK_WEBHOOK_URL
 CANVA_CLIENT_ID, CANVA_CLIENT_SECRET, CANVA_REDIRECT_URI
 MAKE_WEBHOOK_URL
 ```
+
+## Deployment (Vercel)
+
+The system deploys to Vercel as a serverless function with a static dashboard.
+
+- **`vercel.json`** — Routes `/api/*` and `/health` to `api/index.ts` serverless function; all other routes serve the dashboard SPA from `dashboard/dist/`
+- **`api/index.ts`** — Serverless entry point that mounts the same Express routes as `src/index.ts` but does not start the email polling loop
+- **Cron Job** — Vercel Cron calls `POST /api/emails/poll` every minute to replace the `setInterval` polling used in local development
+- **Build** — `npm run build:all` compiles TypeScript and builds the React dashboard
+- **Environment** — Set all `.env` variables in the Vercel project settings; the `VERCEL` env var is auto-set by the platform and used to skip `setInterval` polling
 
 ## Conventions
 - Strict TypeScript (`strict: true`)
@@ -142,3 +179,5 @@ MAKE_WEBHOOK_URL
 - Single webhook URL for Make.com — `event_type` field in payload, Make.com Router module fans out to scenarios
 - Single-row token table for Canva OAuth2 — one account serves all three companies
 - Console logging with `[ServiceName]` prefixes for traceability
+- Auto-redraft on request-changes — when Brian requests changes to an email draft, the response agent automatically regenerates incorporating the feedback
+- Canva brand template autofill — if `canva_flyer_template_id` or `canva_business_card_template_id` is set on a brand kit, deliverable generation uses the Canva autofill API to populate brand elements; falls back to blank preset designs otherwise
