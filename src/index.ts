@@ -8,6 +8,7 @@ import canvaRoutes from './api/canva';
 import makeRoutes from './api/make';
 import conversationRoutes from './api/conversations';
 import companyRoutes from './api/companies';
+import agentRoutes from './api/agents';
 
 dotenv.config();
 
@@ -50,6 +51,7 @@ app.use('/api', canvaRoutes);
 app.use('/api', makeRoutes);
 app.use('/api', conversationRoutes);
 app.use('/api', companyRoutes);
+app.use('/api', agentRoutes);
 
 // ─── Dashboard Static Files (production) ───
 
